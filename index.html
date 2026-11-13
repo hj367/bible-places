@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>All Bible Places</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Marcellus&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Spectral:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="maplibre-gl.css">
+<style>
+:root {
+  /* Lapis & vellum: an ink-blue reading panel beside a relief atlas; gold marks what you selected. */
+  --ink: #0f1c26;
+  --ink-2: #162835;
+  --ink-3: #1f3545;
+  --line: #2a4252;
+  --vellum: #ece6d6;
+  --muted: #95a6b1;
+  --gold: #dcb35f;
+  --gold-soft: rgba(220, 179, 95, .16);
+
+  --c-city: #c8473f;
+  --c-region: #9a78c4;
+  --c-mountain: #b07636;
+  --c-water: #3a8fc2;
+  --c-camp: #d9952a;
+  --c-landmark: #4b9a73;
+
+  --f-display: "Marcellus", "Trajan Pro", "Optima", Georgia, serif;
+  --f-ui: "Instrument Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --f-text: "Spectral", "Iowan Old Style", Georgia, serif;
+
+  --panel-w: 410px;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--ink); color: var(--vellum); font-family: var(--f-ui); font-size: 14px; line-height: 1.45; overflow: hidden; -webkit-font-smoothing: antialiased; }
+button, input, select { font: inherit; color: inherit; }
+a { color: var(--gold); text-decoration: none; }
+a:hover { text-decoration: underline; }
+:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; border-radius: 4px; }
+
+.app { display: grid; grid-template-columns: var(--panel-w) 1fr; height: 100%; }
+#map { position: relative; height: 100%; background: #ebe4d3; }
+
+/* ---------- panel */
+.panel { position: relative; display: flex; flex-direction: column; min-height: 0; background: var(--ink); border-right: 1px solid var(--line); z-index: 2; }
+.panel-head { padding: 22px 22px 14px; display: grid; gap: 14px; border-bottom: 1px solid var(--line); background: linear-gradient(180deg, #132431 0%, var(--ink) 100%); }
+.brand { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.brand h1 { margin: 0; font-family: var(--f-display); font-weight: 400; font-size: 27px; letter-spacing: .02em; line-height: 1.1; }
+.brand .about-btn { background: none; border: 1px solid var(--line); border-radius: 999px; padding: 3px 11px; color: var(--muted); font-size: 12px; cursor: pointer; flex: none; }
+.brand .about-btn:hover { color: var(--vellum); border-color: var(--muted); }
+.stats { margin: -6px 0 0; color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.stats b { color: var(--vellum); font-weight: 500; }
+
+.search { position: relative; }
+.search input { width: 100%; padding: 11px 38px 11px 38px; border-radius: 10px; border: 1px solid var(--line); background: var(--ink-2); font-size: 15px; outline: none; }
+.search input::placeholder { color: #6f8290; }
+.search input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold-soft); }
+.search svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--muted); pointer-events: none; }
+.search kbd { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font: 11px var(--f-ui); color: var(--muted); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; }
+.search .clear { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: 0; color: var(--muted); cursor: pointer; padding: 4px 6px; display: none; font-size: 16px; line-height: 1; }
+.search.has-q .clear { display: block; }
+.search.has-q kbd { display: none; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 8px; border-radius: 999px; border: 1px solid var(--line); background: transparent; font-size: 12.5px; cursor: pointer; color: var(--muted); transition: background .15s, color .15s, border-color .15s; }
+.chip .sw { width: 9px; height: 9px; border-radius: 50%; background: var(--c); flex: none; }
+.chip .n { font-variant-numeric: tabular-nums; opacity: .7; font-size: 11.5px; }
+.chip[aria-pressed="true"] { background: var(--ink-3); color: var(--vellum); border-color: #3a5466; }
+.chip[aria-pressed="false"] .sw { background: transparent; box-shadow: inset 0 0 0 1.5px var(--c); }
+
+.filters { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
+.select { position: relative; }
+.select select { width: 100%; appearance: none; -webkit-appearance: none; padding: 8px 30px 8px 11px; border-radius: 8px; border: 1px solid var(--line); background: var(--ink-2); font-size: 13px; cursor: pointer; }
+.select::after { content: ""; position: absolute; right: 12px; top: 50%; width: 6px; height: 6px; border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: translateY(-70%) rotate(45deg); pointer-events: none; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { background: transparent; border: 0; padding: 7px 10px; font-size: 12.5px; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.seg button[aria-pressed="true"] { background: var(--ink-3); color: var(--vellum); }
+.seg button + button { border-left: 1px solid var(--line); }
+.trace-row { display: none; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
+.trace-row.on { display: flex; }
+.switch { position: relative; width: 30px; height: 17px; flex: none; }
+.switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.switch span { position: absolute; inset: 0; border-radius: 99px; background: var(--ink-3); border: 1px solid var(--line); transition: background .15s; pointer-events: none; }
+.switch span::after { content: ""; position: absolute; left: 2px; top: 2px; width: 11px; height: 11px; border-radius: 50%; background: var(--muted); transition: transform .15s, background .15s; }
+.switch input:checked + span { background: var(--gold-soft); border-color: var(--gold); }
+.switch input:checked + span::after { transform: translateX(13px); background: var(--gold); }
+.switch input:focus-visible + span { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+.list-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 22px 8px; color: var(--muted); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
+.list-head button { background: none; border: 0; color: var(--muted); font-size: 12px; cursor: pointer; letter-spacing: .04em; text-transform: uppercase; padding: 2px 0; }
+.list-head button:hover { color: var(--vellum); }
+.scroller { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+.list { list-style: none; margin: 0; padding: 0 10px 24px; }
+.row { display: grid; grid-template-columns: 14px 1fr auto; gap: 10px; align-items: center; width: 100%; padding: 8px 12px; border: 0; border-radius: 8px; background: transparent; text-align: left; cursor: pointer; }
+.row:hover, .row.hover { background: var(--ink-2); }
+.row.active { background: var(--ink-3); box-shadow: inset 2px 0 0 var(--gold); }
+.row .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c); justify-self: center; }
+.row .dot.unc { background: transparent; box-shadow: inset 0 0 0 1.6px var(--c); }
+.row .dot.none { background: transparent; box-shadow: inset 0 0 0 1.2px #556a78; border-radius: 2px; transform: rotate(45deg) scale(.8); }
+.row .dot.ord { width: 20px; height: 20px; border-radius: 50%; background: var(--gold); color: var(--ink); font-size: 10.5px; font-weight: 600; display: grid; place-items: center; font-variant-numeric: tabular-nums; margin-left: -5px; }
+.row .t { min-width: 0; }
+.row .nm { font-size: 14.5px; color: var(--vellum); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .nm small { color: var(--muted); font-size: 12px; margin-left: 6px; }
+.row .sub { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .m { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
+.empty { padding: 30px 22px; color: var(--muted); }
+.more { display: block; margin: 6px auto 0; background: none; border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; color: var(--muted); cursor: pointer; font-size: 12.5px; }
+.more:hover { color: var(--vellum); }
+
+/* ---------- detail */
+.detail { position: absolute; inset: 0; background: var(--ink); display: flex; flex-direction: column; transform: translateX(-102%); transition: transform .28s cubic-bezier(.2,.8,.2,1); z-index: 3; }
+.detail.open { transform: none; }
+.detail-bar { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.detail-bar button { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 6px 8px; border-radius: 6px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
+.detail-bar button:hover { color: var(--vellum); background: var(--ink-2); }
+.detail-body { flex: 1; overflow-y: auto; padding: 18px 24px 40px; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+.eyebrow { display: flex; align-items: center; gap: 8px; font-size: 11.5px; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); }
+.eyebrow .sw { width: 9px; height: 9px; border-radius: 50%; background: var(--c); }
+.place-name { margin: 8px 0 2px; font-family: var(--f-display); font-weight: 400; font-size: 40px; line-height: 1.05; letter-spacing: .01em; text-wrap: balance; }
+.aka { color: var(--muted); font-size: 13px; margin: 6px 0 0; }
+.aka i { color: var(--vellum); font-style: italic; font-family: var(--f-text); font-size: 14px; }
+.facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin: 18px 0 6px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.facts div { background: var(--ink); padding: 10px 12px; }
+.facts b { display: block; font-size: 20px; font-weight: 500; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.facts span { font-size: 11.5px; color: var(--muted); }
+.facts .first b { font-size: 14px; padding-top: 4px; line-height: 1.35; }
+.banner { margin: 14px 0 0; padding: 10px 12px; border-radius: 8px; background: var(--ink-2); border: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+.banner a { cursor: pointer; }
+section.blk { margin-top: 26px; }
+section.blk > h3 { margin: 0 0 10px; font: 500 11.5px var(--f-ui); text-transform: uppercase; letter-spacing: .12em; color: var(--muted); display: flex; justify-content: space-between; align-items: baseline; }
+section.blk > h3 span { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.site { padding: 14px; border-radius: 10px; background: var(--ink-2); border: 1px solid var(--line); }
+.site .lbl { font-size: 12px; color: var(--muted); }
+.site .sn { font-family: var(--f-text); font-size: 19px; margin: 2px 0 10px; line-height: 1.25; }
+.conf { display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; align-items: center; }
+.bar { height: 6px; border-radius: 99px; background: #0b151d; overflow: hidden; }
+.bar i { display: block; height: 100%; border-radius: 99px; background: var(--gold); }
+.conf .v { font-size: 12.5px; font-variant-numeric: tabular-nums; color: var(--vellum); }
+.conf .note { grid-column: 1 / -1; font-size: 12px; color: var(--muted); }
+.spark { margin-top: 14px; }
+.spark svg { display: block; width: 100%; height: 64px; overflow: visible; }
+.spark .cap { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: 4px; font-variant-numeric: tabular-nums; }
+.alts { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.alts button { width: 100%; display: grid; grid-template-columns: 22px 1fr 70px 36px; gap: 8px; align-items: center; padding: 7px 8px; border-radius: 8px; border: 0; background: transparent; cursor: pointer; text-align: left; }
+.alts button:hover { background: var(--ink-2); }
+.alts .k { width: 20px; height: 20px; border-radius: 50%; border: 1px solid #50687a; color: var(--muted); font-size: 11px; display: grid; place-items: center; font-variant-numeric: tabular-nums; }
+.alts .an { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.alts .bar { height: 4px; }
+.alts .bar i { background: #7f95a4; }
+.alts .pc { font-size: 12px; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+.kids { display: flex; flex-wrap: wrap; gap: 6px; }
+.kids button { background: var(--ink-2); border: 1px solid var(--line); border-radius: 999px; padding: 4px 11px; font-size: 12.5px; cursor: pointer; }
+.kids button:hover { border-color: var(--gold); }
+.books { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.books button { background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 3px 8px; font-size: 12px; color: var(--muted); cursor: pointer; font-variant-numeric: tabular-nums; }
+.books button b { color: var(--vellum); font-weight: 500; margin-right: 4px; }
+.books button[aria-pressed="true"] { border-color: var(--gold); background: var(--gold-soft); color: var(--vellum); }
+.verses { display: grid; gap: 14px; }
+.vbook { font-family: var(--f-display); font-size: 17px; color: var(--vellum); margin: 6px 0 -4px; letter-spacing: .02em; }
+.verse { margin: 0; font-family: var(--f-text); font-size: 15.5px; line-height: 1.55; color: #ddd6c4; max-width: 62ch; }
+.verse .ref { font-family: var(--f-ui); font-size: 11.5px; color: var(--gold); font-variant-numeric: tabular-nums; margin-right: 6px; letter-spacing: .02em; }
+.verse mark { background: none; color: var(--vellum); font-weight: 500; box-shadow: inset 0 -0.42em 0 var(--gold-soft); }
+.verse.loading { color: var(--muted); font-style: italic; font-size: 14px; }
+.links { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 13px; }
+.links a::after { content: " ↗"; font-size: 11px; }
+.photo { display: block; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line); color: var(--vellum); font-size: 13px; }
+.photo:hover { border-color: var(--gold); text-decoration: none; }
+.photo small { display: block; color: var(--muted); margin-top: 2px; }
+.coords { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; margin-top: 12px; }
+.coords button { background: none; border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; color: var(--muted); cursor: pointer; font-size: 12px; }
+.coords button:hover { color: var(--vellum); }
+
+/* ---------- map chrome */
+.map-ui { position: absolute; z-index: 1; }
+.legend { left: 14px; bottom: 30px; background: rgba(250, 247, 240, .94); color: #2b2a26; border-radius: 10px; padding: 10px 12px; font-size: 12px; box-shadow: 0 6px 24px rgba(30, 30, 20, .18); display: grid; gap: 5px; min-width: 150px; color-scheme: light; backdrop-filter: blur(6px); }
+.legend h4 { margin: 0 0 2px; font: 600 10.5px var(--f-ui); letter-spacing: .12em; text-transform: uppercase; color: #6c675c; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.legend h4 button { background: none; border: 0; padding: 0 2px; color: #6c675c; cursor: pointer; font-size: 14px; line-height: 1; }
+.legend .li { display: flex; align-items: center; gap: 8px; }
+.legend .sw { width: 10px; height: 10px; border-radius: 50%; background: var(--c); flex: none; }
+.legend .sw.h { background: transparent; box-shadow: inset 0 0 0 1.6px #6c675c; }
+.legend .sw.f { background: #6c675c; }
+.legend .rg { font-size: 10px; letter-spacing: .14em; color: #6b4f8f; font-weight: 600; width: 10px; text-align: center; }
+.legend .sep { height: 1px; background: rgba(0,0,0,.1); margin: 3px 0; }
+.legend.min .li, .legend.min .sep { display: none; }
+.layers { right: 10px; top: 118px; }
+.layers > button, .reset { width: 29px; height: 29px; border-radius: 4px; border: 0; background: #fff; box-shadow: 0 0 0 2px rgba(0,0,0,.1); cursor: pointer; display: grid; place-items: center; color: #333; }
+.reset { position: absolute; right: 10px; top: 82px; z-index: 1; }
+.layers > button:hover, .reset:hover { background: #f2f2f2; }
+.layers .menu { position: absolute; right: 36px; top: 0; width: 210px; background: rgba(250, 247, 240, .97); color: #2b2a26; border-radius: 10px; padding: 10px 12px; box-shadow: 0 6px 24px rgba(30,30,20,.2); display: none; gap: 8px; color-scheme: light; }
+.layers.open .menu { display: grid; }
+.layers .menu h4 { margin: 0; font: 600 10.5px var(--f-ui); letter-spacing: .12em; text-transform: uppercase; color: #6c675c; }
+.layers label { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.layers input { accent-color: #9c7a2f; }
+.tip { font: 12.5px var(--f-ui); color: #26241f; }
+.tip b { font-weight: 600; display: block; font-size: 13.5px; }
+.tip span { color: #6c675c; }
+.maplibregl-popup-content { border-radius: 9px; padding: 8px 11px; box-shadow: 0 6px 22px rgba(20,20,10,.22); background: #fbf8f1; }
+.maplibregl-popup-anchor-bottom .maplibregl-popup-tip { border-top-color: #fbf8f1; }
+.maplibregl-popup-anchor-top .maplibregl-popup-tip { border-bottom-color: #fbf8f1; }
+.maplibregl-popup-anchor-left .maplibregl-popup-tip { border-right-color: #fbf8f1; }
+.maplibregl-popup-anchor-right .maplibregl-popup-tip { border-left-color: #fbf8f1; }
+.chooser { display: grid; gap: 2px; min-width: 190px; max-height: 260px; overflow-y: auto; color-scheme: light; }
+.chooser h5 { margin: 0 0 4px; font: 600 10.5px var(--f-ui); letter-spacing: .1em; text-transform: uppercase; color: #6c675c; }
+.chooser button { display: flex; align-items: center; gap: 8px; text-align: left; background: none; border: 0; padding: 5px 6px; border-radius: 6px; cursor: pointer; font: 13px var(--f-ui); color: #26241f; }
+.chooser button:hover { background: #efe8d8; }
+.chooser .sw { width: 9px; height: 9px; border-radius: 50%; background: var(--c); flex: none; }
+.maplibregl-ctrl-attrib { font: 11px var(--f-ui); background: rgba(250,247,240,.85) !important; }
+.maplibregl-ctrl-attrib a { color: #5a4a22; }
+.maplibregl-ctrl-scale { font: 10.5px var(--f-ui); border-color: #6c675c; color: #3b3830; background: rgba(250,247,240,.7); }
+.loading-veil { position: absolute; inset: 0; display: grid; place-items: center; background: #ebe4d3; color: #6c675c; font: 13px var(--f-ui); z-index: 5; transition: opacity .4s; }
+.loading-veil.gone { opacity: 0; pointer-events: none; }
+
+/* ---------- about */
+dialog { max-width: 560px; width: calc(100% - 32px); border: 1px solid var(--line); border-radius: 14px; background: var(--ink); color: var(--vellum); padding: 26px 28px; }
+dialog::backdrop { background: rgba(5, 10, 15, .6); }
+dialog h2 { margin: 0 0 10px; font-family: var(--f-display); font-weight: 400; font-size: 26px; }
+dialog p { margin: 0 0 12px; color: #cfc9ba; max-width: 62ch; }
+dialog .close { position: absolute; right: 14px; top: 12px; background: none; border: 0; color: var(--muted); font-size: 20px; cursor: pointer; }
+dialog dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 13px; margin: 14px 0 0; }
+dialog dt { color: var(--muted); }
+dialog dd { margin: 0; }
+
+.sheet-handle { display: none; }
+
+/* ---------- small screens: map on top, panel as bottom sheet */
+@media (max-width: 760px) {
+  .app { display: block; }
+  #map { position: absolute; inset: 0; }
+  .panel { position: absolute; left: 0; right: 0; bottom: 0; height: 46%; border-right: 0; border-top: 1px solid var(--line); border-radius: 16px 16px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,.25); transition: height .25s ease; overflow: hidden; }
+  .panel.tall { height: 88%; }
+  .panel.short { height: 132px; }
+  .sheet-handle { display: block; width: 100%; height: 22px; border: 0; background: transparent; cursor: pointer; flex: none; }
+  .sheet-handle::before { content: ""; display: block; width: 42px; height: 4px; border-radius: 4px; background: #3c5666; margin: 8px auto 0; }
+  .panel-head { padding: 4px 16px 12px; gap: 10px; background: var(--ink); }
+  .brand h1 { font-size: 22px; }
+  .stats { display: none; }
+  .search kbd { display: none; }
+  .list-head { padding: 8px 16px 6px; }
+  .detail { border-radius: 16px 16px 0 0; }
+  .detail-body { padding: 14px 18px 40px; }
+  .place-name { font-size: 32px; }
+  .legend { display: none; }
+  .layers { top: 118px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .detail, .panel, .chip, .switch span::after { transition: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="panel" id="panel" aria-label="Places">
+    <button class="sheet-handle" id="handle" aria-label="Resize panel"></button>
+    <div class="panel-head">
+      <div class="brand">
+        <h1>All Bible Places</h1>
+        <button class="about-btn" id="aboutBtn">About</button>
+      </div>
+      <p class="stats" id="stats">Loading places…</p>
+      <div class="search" id="searchWrap">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="7" cy="7" r="5"/><path d="m11 11 3.5 3.5"/></svg>
+        <label for="q" class="sr" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Search places</label>
+        <input id="q" type="search" autocomplete="off" spellcheck="false" placeholder="Search a place, alternate name or modern site">
+        <kbd>/</kbd>
+        <button class="clear" id="clearQ" aria-label="Clear search">×</button>
+      </div>
+      <div class="chips" id="chips" role="group" aria-label="Kinds of place"></div>
+      <div class="filters">
+        <div class="select">
+          <label for="book" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Book of the Bible</label>
+          <select id="book"><option value="0">Every book of the Bible</option></select>
+        </div>
+        <div class="seg" role="group" aria-label="Identification confidence">
+          <button id="confAll" aria-pressed="true">All</button>
+          <button id="confSure" aria-pressed="false" title="Only places whose location most scholars agree on">Likely sites</button>
+        </div>
+      </div>
+      <div class="trace-row" id="traceRow">
+        <span class="switch"><input type="checkbox" id="trace" checked><span></span></span>
+        <label for="trace">Number places in order of first mention</label>
+      </div>
+    </div>
+    <div class="list-head"><span id="count"></span><button id="sortBtn">Sort: most mentioned</button></div>
+    <div class="scroller" id="scroller"><ul class="list" id="list"></ul></div>
+
+    <article class="detail" id="detail" aria-live="polite">
+      <div class="detail-bar">
+        <button id="back"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg>All places</button>
+        <button id="zoomTo">Show on map</button>
+      </div>
+      <div class="detail-body" id="detailBody"></div>
+    </article>
+  </aside>
+
+  <main id="map" aria-label="Map of Bible places">
+    <div class="loading-veil" id="veil">Drawing the map…</div>
+    <button class="reset" id="reset" title="Show the whole biblical world" aria-label="Show the whole biblical world">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M2 6V2h4M14 6V2h-4M2 10v4h4M14 10v4h-4"/></svg>
+    </button>
+    <div class="map-ui layers" id="layers">
+      <button id="layersBtn" title="Map layers" aria-label="Map layers" aria-expanded="false">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m8 2 6 3-6 3-6-3 6-3Z"/><path d="m2 8 6 3 6-3M2 11l6 3 6-3"/></svg>
+      </button>
+      <div class="menu">
+        <h4>Map layers</h4>
+        <label><input type="checkbox" id="lyRelief" checked> Terrain shading</label>
+        <label><input type="checkbox" id="lyRivers" checked> Rivers and lakes</label>
+        <label><input type="checkbox" id="lyLabels" checked> Place names</label>
+        <label><input type="checkbox" id="lyModern" checked> Modern borders and landforms</label>
+      </div>
+    </div>
+    <div class="map-ui legend" id="legend">
+      <h4>Legend <button id="legendToggle" aria-label="Collapse legend" aria-expanded="true">−</button></h4>
+      <div id="legendItems" style="display:contents"></div>
+      <div class="sep"></div>
+      <div class="li"><span class="sw f"></span>Location agreed by most scholars</div>
+      <div class="li"><span class="sw h"></span>Location uncertain</div>
+      <div class="li"><span class="rg">A</span>Region or land</div>
+    </div>
+  </main>
+</div>
+
+<dialog id="about">
+  <button class="close" id="aboutClose" aria-label="Close">×</button>
+  <h2>About this atlas</h2>
+  <p>Every place named in the Protestant Bible, located on the map where modern scholarship puts it. Each place shows how confident researchers are in the identification, the competing sites that have been proposed, and every passage that mentions it.</p>
+  <p>Locations and confidence scores come from OpenBible.info's Bible Geocoding Data, which surveys more than seventy atlases, commentaries and dictionaries. Confidence reflects sources published since 2010; the chart on each place traces how that confidence has moved since the 1960s.</p>
+  <p>This is a rebuild of the “All Bible Places” Google map, which used OpenBible.info's 2007 data. It keeps those places and adds the 2021 research, region outlines, river courses and scripture text.</p>
+  <dl>
+    <dt>Places</dt><dd><a href="https://www.openbible.info/geo/">OpenBible.info Bible Geocoding</a>, CC BY 4.0. Some outlines © OpenStreetMap contributors (ODbL).</dd>
+    <dt>Scripture</dt><dd>Berean Standard Bible (public domain)</dd>
+    <dt>Basemap</dt><dd>Natural Earth vectors and shaded relief (public domain)</dd>
+    <dt>Map engine</dt><dd>MapLibre GL JS</dd>
+  </dl>
+  <p style="margin-top:14px;font-size:12.5px;color:var(--muted)">Keyboard: <b>/</b> search · <b>Esc</b> close a place</p>
+</dialog>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.js"></script>
+<script>
+(() => {
+'use strict';
+
+const CATS = {
+  city:     { label: 'Cities',   one: 'City or town',      color: '#c8473f', text: '#2c2420' },
+  region:   { label: 'Regions',  one: 'Region or land',    color: '#9a78c4', text: '#5d4683' },
+  mountain: { label: 'Hills & valleys',  one: 'Hill, mountain or valley', color: '#b07636', text: '#5e3d17' },
+  water:    { label: 'Waters',           one: 'River, sea or spring', color: '#3a8fc2', text: '#1f5f86' },
+  camp:     { label: 'Camps', one: 'Wilderness camp',   color: '#d9952a', text: '#77500f' },
+  landmark: { label: 'Landmarks',one: 'Site or landmark',  color: '#4b9a73', text: '#24563d' },
+};
+const CAT_ORDER = ['city', 'region', 'mountain', 'water', 'camp', 'landmark'];
+const TIERS = [0, 3.7, 4.8, 6, 7.3, 8.6];
+const DECADES = ['to 1969', '1970s', '1980s', '1990s', '2000s', '2010s'];
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const mobile = () => matchMedia('(max-width: 760px)').matches;
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const fmt = (n) => n.toLocaleString('en-US');
+const fold = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[’‘'`]/g, '').toLowerCase();
+const base = new URL('.', location.href).href;
+
+let BOOKS = [], P = [], byId = new Map(), bySlug = new Map();
+let VERSES = null, SHAPES = null, versesPromise = null, shapesPromise = null;
+const state = { q: '', cats: new Set(CAT_ORDER), book: 0, sure: false, trace: true, sort: 'mentions', sel: null, limit: 250 };
+let map, hoverPopup, choosePopup, mapReady = false;
+
+/* ---------------- helpers */
+function confWord(c) {
+  if (c == null) return 'Unknown';
+  if (c >= 800) return 'Very likely';
+  if (c >= 500) return 'Likely';
+  if (c >= 250) return 'Possible';
+  return 'Uncertain';
+}
+function refStr(key, withBook = true) {
+  const b = Math.floor(key / 1e6), c = Math.floor(key / 1e3) % 1000, v = key % 1000;
+  const name = BOOKS[b - 1];
+  const single = ['Obadiah', 'Philemon', '2 John', '3 John', 'Jude'].includes(name);
+  const cv = single ? `${v}` : `${c}:${v}`;
+  return withBook ? `${name} ${cv}` : cv;
+}
+function tierOf(p) {
+  const m = p.m;
+  let t = m >= 150 ? 0 : m >= 40 ? 1 : m >= 15 ? 2 : m >= 5 ? 3 : m >= 2 ? 4 : 5;
+  if (p.cat === 'region' && t > 0) t -= 1;
+  if ((p.c ?? 0) < 250 && t < 5) t += 1;
+  return t;
+}
+function site(p) {
+  const e = p.ids && p.ids.find((i) => 'x' in i);
+  return e ? e.d : '';
+}
+function subline(p) {
+  if (p.rel === 'alias' && byId.get(p.par)) return `Another name for ${byId.get(p.par).n}`;
+  if (p.rel === 'in' && byId.get(p.par)) return `Within ${byId.get(p.par).n}`;
+  if (p.x == null) return p.note ? cap(p.note) : 'Location unknown';
+  const s = site(p).replace(/\s\d+$/, '');
+  if (!s || fold(s) === fold(p.n)) return CATS[p.cat].one;
+  return cap(s);
+}
+function cap(s) { return s ? s[0].toUpperCase() + s.slice(1) : s; }
+
+/* ---------------- data */
+async function getJSON(f) {
+  const r = await fetch(new URL(f, base));
+  if (!r.ok) throw new Error(`${f}: ${r.status}`);
+  return r.json();
+}
+function loadVerses() { return versesPromise ||= getJSON('verses.json').then((d) => (VERSES = d)); }
+function loadShapes() { return shapesPromise ||= getJSON('shapes.json').then((d) => (SHAPES = d)); }
+
+function prepare(data) {
+  BOOKS = data.books;
+  P = data.places;
+  const counts = new Map();
+  P.forEach((p, i) => { p.i = i; });
+  for (const p of P) {
+    p.m = p.v.length;
+    p.books = new Map();
+    for (const k of p.v) { const b = Math.floor(k / 1e6); p.books.set(b, (p.books.get(b) || 0) + 1); }
+    p.t = tierOf(p);
+    p.hidden = p.rel === 'alias' || p.rel === 'in' || p.x == null;
+    p.kids = [];
+    p.key = fold([p.n, ...(p.alt || [])].join(' | '));
+    p.siteKey = fold(site(p));
+    byId.set(p.id, p);
+    bySlug.set(p.slug, p);
+    counts.set(p.n, (counts.get(p.n) || 0) + 1);
+  }
+  for (const p of P) {
+    p.dup = counts.get(p.n) > 1;
+    if (p.par && byId.get(p.par)) byId.get(p.par).kids.push(p);
+  }
+}
+
+function feature(p, extra = {}) {
+  return {
+    type: 'Feature', id: p.i,
+    geometry: { type: 'Point', coordinates: [p.x, p.y] },
+    properties: { id: p.id, n: p.n, cat: p.cat, m: p.m, t: p.t, unc: (p.c ?? 0) < 500 ? 1 : 0, ...extra },
+  };
+}
+
+/* ---------------- filtering */
+function passes(p, { ignoreQuery = false } = {}) {
+  if (!state.cats.has(p.cat)) return false;
+  if (state.sure && (p.c ?? 0) < 500) return false;
+  if (state.book && !p.books.has(state.book)) return false;
+  if (!ignoreQuery && state.q) return matchScore(p) > 0;
+  return true;
+}
+function matchScore(p) {
+  const q = state.q;
+  const n = fold(p.n);
+  if (n === q) return 100;
+  if (n.startsWith(q)) return 80;
+  if (p.key.includes(q)) return 60;
+  if (p.siteKey.includes(q)) return 40;
+  return 0;
+}
+function firstIn(p, b) { return p.v.find((k) => Math.floor(k / 1e6) === b); }
+function filtered() {
+  const out = P.filter((p) => passes(p));
+  if (state.q) out.sort((a, b) => matchScore(b) - matchScore(a) || b.m - a.m);
+  else if (state.book) out.sort((a, b) => firstIn(a, state.book) - firstIn(b, state.book));
+  else if (state.sort === 'az') out.sort((a, b) => a.n.localeCompare(b.n));
+  else out.sort((a, b) => b.m - a.m || a.n.localeCompare(b.n));
+  return out;
+}
+
+/* ---------------- list UI */
+function renderChips() {
+  const el = $('#chips');
+  const counts = {};
+  for (const p of P) counts[p.cat] = (counts[p.cat] || 0) + 1;
+  el.innerHTML = CAT_ORDER.map((c) => `<button class="chip" data-cat="${c}" title="Show only ${CATS[c].label.toLowerCase()}; click more kinds to add them" style="--c:${CATS[c].color}" aria-pressed="${state.cats.has(c)}"><span class="sw"></span>${CATS[c].label}<span class="n">${fmt(counts[c] || 0)}</span></button>`).join('');
+  $('#legendItems').innerHTML = CAT_ORDER.filter((c) => c !== 'region').map((c) => `<div class="li"><span class="sw" style="--c:${CATS[c].color}"></span>${CATS[c].label}</div>`).join('');
+}
+function renderBooks() {
+  const sel = $('#book');
+  const used = new Map();
+  for (const p of P) for (const [b] of p.books) used.set(b, (used.get(b) || 0) + 1);
+  const opt = (i) => used.get(i + 1) ? `<option value="${i + 1}">${BOOKS[i]} · ${used.get(i + 1)} places</option>` : '';
+  sel.insertAdjacentHTML('beforeend', `<optgroup label="Old Testament">${BOOKS.slice(0, 39).map((_, i) => opt(i)).join('')}</optgroup><optgroup label="New Testament">${BOOKS.slice(39).map((_, i) => opt(i + 39)).join('')}</optgroup>`);
+}
+let lastList = [];
+function renderList() {
+  const items = filtered();
+  lastList = items;
+  const showOrder = state.book && !state.q;
+  $('#count').textContent = `${fmt(items.length)} ${items.length === 1 ? 'place' : 'places'}${state.book ? ' in ' + BOOKS[state.book - 1] : ''}`;
+  $('#sortBtn').style.visibility = state.book || state.q ? 'hidden' : 'visible';
+  $('#sortBtn').textContent = state.sort === 'az' ? 'Sort: A–Z' : 'Sort: most mentioned';
+  const list = $('#list');
+  if (!items.length) {
+    list.innerHTML = `<li class="empty">No places match${state.q ? ` “${esc($('#q').value)}”` : ''}. Try another spelling, or turn the filters above back on.</li>`;
+    return;
+  }
+  const shown = items.slice(0, state.limit);
+  let ordered = 0;
+  list.innerHTML = shown.map((p) => {
+    const c = CATS[p.cat].color;
+    let dot;
+    if (showOrder && state.trace && !p.hidden && p.cat !== 'region') dot = `<span class="dot ord">${++ordered}</span>`;
+    else dot = `<span class="dot ${p.x == null ? 'none' : (p.c ?? 0) < 500 ? 'unc' : ''}" style="--c:${c}"></span>`;
+    const right = state.book ? refStr(firstIn(p, state.book), false) : fmt(p.m);
+    return `<li><button class="row${state.sel === p ? ' active' : ''}" data-id="${p.id}">${dot}<span class="t"><div class="nm">${esc(p.n)}</div><div class="sub">${esc(subline(p))}</div></span><span class="m">${right}</span></button></li>`;
+  }).join('') + (items.length > shown.length ? `<li><button class="more" id="moreBtn">Show ${fmt(Math.min(500, items.length - shown.length))} more</button></li>` : '');
+}
+
+/* ---------------- map */
+const POLY = ['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]];
+const LINE = ['in', ['geometry-type'], ['literal', ['LineString', 'MultiLineString']]];
+function buildStyle(geo) {
+  const glyphs = 'glyphs://{fontstack}/{range}';
+  const [LON0, LAT0, LON1, LAT1] = geo.meta.bounds;
+  const layers = [
+    { id: 'land', type: 'background', paint: { 'background-color': '#ebe4d3' } },
+    { id: 'relief', type: 'raster', source: 'relief', paint: { 'raster-opacity': ['interpolate', ['linear'], ['zoom'], 5, 1, 9, .85, 12, .55], 'raster-fade-duration': 0, 'raster-resampling': 'linear', 'raster-saturation': -.15, 'raster-contrast': -.28, 'raster-brightness-min': .14 } },
+    { id: 'ocean', type: 'fill', source: 'ocean', paint: { 'fill-color': '#bcd2d8', 'fill-antialias': true } },
+    { id: 'coast-glow', type: 'line', source: 'ocean', paint: { 'line-color': '#d9e7ea', 'line-width': ['interpolate', ['linear'], ['zoom'], 3, 1.5, 8, 5], 'line-blur': 3, 'line-opacity': .7 } },
+    { id: 'coast', type: 'line', source: 'ocean', paint: { 'line-color': '#7fa3b1', 'line-width': ['interpolate', ['linear'], ['zoom'], 3, .4, 8, .9, 12, 1.3] } },
+    { id: 'lakes', type: 'fill', source: 'lakes', paint: { 'fill-color': '#bcd2d8', 'fill-outline-color': '#7fa3b1' } },
+    { id: 'rivers', type: 'line', source: 'rivers', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#6f9fb6', 'line-opacity': ['interpolate', ['linear'], ['zoom'], 3, .55, 8, .9], 'line-width': ['interpolate', ['linear'], ['zoom'], 3, ['case', ['<=', ['get', 'scalerank'], 3], .9, .35], 8, ['case', ['<=', ['get', 'scalerank'], 3], 2.2, 1.1], 12, 3] } },
+    { id: 'borders', type: 'line', source: 'borders', paint: { 'line-color': 'rgba(92, 80, 64, .38)', 'line-width': ['interpolate', ['linear'], ['zoom'], 3, .5, 9, 1], 'line-dasharray': [4, 2.5] } },
+    { id: 'landforms', type: 'symbol', source: 'geolabels', maxzoom: 7.5, filter: ['<=', ['get', 'r'], 3],
+      layout: { 'text-field': ['get', 'name'], 'text-font': ['noto-italic'], 'text-size': ['interpolate', ['linear'], ['zoom'], 3, 10, 7, 12], 'text-transform': 'uppercase', 'text-letter-spacing': .28, 'text-max-width': 8, 'text-padding': 6, 'symbol-sort-key': ['get', 'r'] },
+      paint: { 'text-color': 'rgba(105, 92, 72, .55)', 'text-halo-color': 'rgba(240, 234, 220, .5)', 'text-halo-width': 1 } },
+    { id: 'shape-fill', type: 'fill', source: 'shape', filter: POLY, paint: { 'fill-color': '#dcb35f', 'fill-opacity': ['case', ['==', ['get', 'approx'], 1], .1, .18] } },
+    { id: 'shape-line', type: 'line', source: 'shape', filter: ['all', POLY, ['!=', ['get', 'approx'], 1]], layout: { 'line-join': 'round' }, paint: { 'line-color': '#b8892c', 'line-width': 1.8 } },
+    { id: 'shape-approx', type: 'line', source: 'shape', filter: ['all', POLY, ['==', ['get', 'approx'], 1]], layout: { 'line-join': 'round' }, paint: { 'line-color': '#b8892c', 'line-width': 1.6, 'line-dasharray': [2, 2] } },
+    { id: 'shape-river', type: 'line', source: 'shape', filter: LINE, layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#2f7fb4', 'line-width': ['interpolate', ['linear'], ['zoom'], 4, 2.5, 10, 5], 'line-opacity': .9 } },
+    { id: 'alt-lines', type: 'line', source: 'alts', filter: ['==', ['geometry-type'], 'LineString'], paint: { 'line-color': '#5d5a52', 'line-width': 1.2, 'line-dasharray': [2, 2.5], 'line-opacity': .7 } },
+    { id: 'trace-line', type: 'line', source: 'trace', layout: { 'line-join': 'round', 'line-cap': 'round', visibility: 'none' }, paint: { 'line-color': '#b8892c', 'line-width': ['interpolate', ['linear'], ['zoom'], 4, 1.4, 9, 2.6], 'line-opacity': .85, 'line-dasharray': [2, 1.6] } },
+  ];
+  // tiered place layers: important places appear first as you zoom in
+  const radius = (z0, k0, z1, k1) => ['interpolate', ['linear'], ['zoom'], z0, ['+', k0, ['*', .55, ['ln', ['+', 1, ['get', 'm']]]]], z1, ['+', k1, ['*', .85, ['ln', ['+', 1, ['get', 'm']]]]]];
+  const dotPaint = {
+    'circle-radius': radius(3, 1.8, 11, 3.6),
+    'circle-color': ['case', ['==', ['get', 'unc'], 1], '#f6f1e5', ['match', ['get', 'cat'], ...CAT_ORDER.flatMap((c) => [c, CATS[c].color]), '#888']],
+    'circle-stroke-color': ['case', ['==', ['get', 'unc'], 1], ['match', ['get', 'cat'], ...CAT_ORDER.flatMap((c) => [c, CATS[c].color]), '#888'], 'rgba(255,255,255,.95)'],
+    'circle-stroke-width': ['case', ['==', ['get', 'unc'], 1], 1.7, 1.1],
+    'circle-pitch-alignment': 'map',
+  };
+  const labelLayout = {
+    'text-field': ['get', 'n'],
+    'text-font': ['case', ['==', ['get', 'cat'], 'water'], ['literal', ['noto-italic']], ['>=', ['get', 'm'], 40], ['literal', ['noto-medium']], ['literal', ['noto-regular']]],
+    'text-size': ['interpolate', ['linear'], ['zoom'], 3, ['+', 10, ['*', .55, ['ln', ['+', 1, ['get', 'm']]]]], 10, ['+', 11.5, ['*', .75, ['ln', ['+', 1, ['get', 'm']]]]]],
+    'text-variable-anchor': ['top', 'bottom', 'right', 'left'],
+    'text-radial-offset': .75,
+    'text-justify': 'auto',
+    'text-max-width': 9,
+    'text-padding': 2,
+    'symbol-sort-key': ['-', 0, ['get', 'm']],
+  };
+  const labelPaint = {
+    'text-color': ['match', ['get', 'cat'], ...CAT_ORDER.flatMap((c) => [c, CATS[c].text]), '#333'],
+    'text-halo-color': 'rgba(247, 243, 233, .93)', 'text-halo-width': 1.4, 'text-halo-blur': .3,
+  };
+  const regionLayout = {
+    'text-field': ['get', 'n'], 'text-font': ['noto-medium'], 'text-transform': 'uppercase',
+    'text-size': ['interpolate', ['linear'], ['zoom'], 3, ['+', 9.5, ['*', .5, ['ln', ['+', 1, ['get', 'm']]]]], 9, ['+', 12, ['*', .7, ['ln', ['+', 1, ['get', 'm']]]]]],
+    'text-letter-spacing': .2, 'text-max-width': 10, 'text-padding': 4, 'symbol-sort-key': ['-', 0, ['get', 'm']],
+  };
+  const regionPaint = { 'text-color': CATS.region.text, 'text-opacity': .88, 'text-halo-color': 'rgba(247, 243, 233, .75)', 'text-halo-width': 1.2 };
+  const ids = { dots: [], labels: [], regions: [] };
+  for (let t = TIERS.length - 1; t >= 0; t--) {
+    layers.push({ id: `rg-${t}`, type: 'symbol', source: 'places', minzoom: TIERS[t], filter: ['all', ['==', ['get', 't'], t], ['==', ['get', 'cat'], 'region']], layout: regionLayout, paint: regionPaint });
+    ids.regions.push(`rg-${t}`);
+  }
+  for (let t = TIERS.length - 1; t >= 0; t--) {
+    layers.push({ id: `dot-${t}`, type: 'circle', source: 'places', minzoom: TIERS[t], filter: ['all', ['==', ['get', 't'], t], ['!=', ['get', 'cat'], 'region']], paint: dotPaint });
+    ids.dots.push(`dot-${t}`);
+  }
+  for (let t = TIERS.length - 1; t >= 0; t--) {
+    layers.push({ id: `lb-${t}`, type: 'symbol', source: 'places', minzoom: TIERS[t], filter: ['all', ['==', ['get', 't'], t], ['!=', ['get', 'cat'], 'region']], layout: labelLayout, paint: labelPaint });
+    ids.labels.push(`lb-${t}`);
+  }
+  // focus layers: used when a book is chosen (every matching place shows at every zoom)
+  layers.push(
+    { id: 'f-region', type: 'symbol', source: 'focus', filter: ['==', ['get', 'cat'], 'region'], layout: { ...regionLayout, visibility: 'none' }, paint: regionPaint },
+    { id: 'f-dot', type: 'circle', source: 'focus', filter: ['!=', ['get', 'cat'], 'region'], layout: { visibility: 'none' }, paint: dotPaint },
+    { id: 'f-ord', type: 'circle', source: 'focus', filter: ['has', 'ord'], layout: { visibility: 'none', 'circle-sort-key': ['get', 'ord'] }, paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 3, 7.5, 9, 10], 'circle-color': '#dcb35f', 'circle-stroke-color': '#0f1c26', 'circle-stroke-width': 1.2 } },
+    { id: 'f-ordnum', type: 'symbol', source: 'focus', filter: ['has', 'ord'], layout: { visibility: 'none', 'text-field': ['to-string', ['get', 'ord']], 'text-font': ['noto-medium'], 'text-size': ['interpolate', ['linear'], ['zoom'], 3, 9, 9, 11], 'text-allow-overlap': true, 'text-ignore-placement': true, 'symbol-sort-key': ['get', 'ord'] }, paint: { 'text-color': '#0f1c26' } },
+    { id: 'f-label', type: 'symbol', source: 'focus', filter: ['!=', ['get', 'cat'], 'region'], layout: { ...labelLayout, visibility: 'none', 'text-radial-offset': ['case', ['has', 'ord'], 1.05, .75] }, paint: labelPaint },
+  );
+  ids.focus = ['f-region', 'f-dot', 'f-ord', 'f-ordnum', 'f-label'];
+  // selection on top
+  layers.push(
+    { id: 'alt-dots', type: 'circle', source: 'alts', filter: ['==', ['geometry-type'], 'Point'], paint: { 'circle-radius': 9, 'circle-color': 'rgba(250, 247, 240, .95)', 'circle-stroke-color': '#5d5a52', 'circle-stroke-width': 1.2 } },
+    { id: 'alt-num', type: 'symbol', source: 'alts', filter: ['==', ['geometry-type'], 'Point'], layout: { 'text-field': ['to-string', ['get', 'k']], 'text-font': ['noto-medium'], 'text-size': 10.5, 'text-allow-overlap': true, 'text-ignore-placement': true }, paint: { 'text-color': '#3b3830' } },
+    { id: 'sel-halo', type: 'circle', source: 'sel', paint: { 'circle-radius': 16, 'circle-color': 'rgba(220, 179, 95, .22)', 'circle-stroke-color': '#b8892c', 'circle-stroke-width': 2 } },
+    { id: 'sel-label', type: 'symbol', source: 'sel', layout: { 'text-field': ['get', 'n'], 'text-font': ['noto-medium'], 'text-size': 15, 'text-anchor': 'top', 'text-offset': [0, 1.35], 'text-allow-overlap': true, 'text-padding': 4 }, paint: { 'text-color': '#1e1b16', 'text-halo-color': 'rgba(250, 246, 236, .97)', 'text-halo-width': 2 } },
+  );
+  return {
+    style: {
+      version: 8,
+      glyphs,
+      sources: {
+        relief: { type: 'image', url: new URL('relief.jpg', base).href, coordinates: [[LON0, LAT1], [LON1, LAT1], [LON1, LAT0], [LON0, LAT0]] },
+        ocean: { type: 'geojson', data: geo.ocean },
+        lakes: { type: 'geojson', data: geo.lakes },
+        rivers: { type: 'geojson', data: geo.rivers },
+        borders: { type: 'geojson', data: geo.borders },
+        geolabels: { type: 'geojson', data: geo.geolabels },
+        places: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
+        focus: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
+        shape: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
+        alts: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
+        trace: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
+        sel: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
+      },
+      layers,
+    },
+    ids,
+  };
+}
+
+let LAYER_IDS;
+const fc = (features) => ({ type: 'FeatureCollection', features });
+
+function refreshMap() {
+  if (!mapReady) return;
+  const bookMode = !!state.book;
+  const vis = (id, on) => map.getLayer(id) && map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none');
+  const labelsOn = $('#lyLabels').checked;
+  // main tiered layers follow category / confidence filters (search only filters the list)
+  const pool = P.filter((p) => !p.hidden && state.cats.has(p.cat) && (!state.sure || (p.c ?? 0) >= 500));
+  map.getSource('places').setData(fc(bookMode ? [] : pool.map((p) => feature(p))));
+  for (const id of [...LAYER_IDS.dots]) vis(id, !bookMode);
+  for (const id of [...LAYER_IDS.labels, ...LAYER_IDS.regions]) vis(id, !bookMode && labelsOn);
+  // book mode
+  let feats = [];
+  const tr = [];
+  if (bookMode) {
+    const inBook = P.filter((p) => !p.hidden && passes(p, { ignoreQuery: true }))
+      .sort((a, b) => firstIn(a, state.book) - firstIn(b, state.book));
+    let k = 0;
+    feats = inBook.map((p) => {
+      const extra = state.trace && p.cat !== 'region' ? { ord: ++k } : {};
+      return feature(p, extra);
+    });
+  }
+  map.getSource('focus').setData(fc(feats));
+  vis('f-dot', bookMode && !state.trace);
+  vis('f-ord', bookMode && state.trace);
+  vis('f-ordnum', bookMode && state.trace);
+  vis('f-label', bookMode && labelsOn);
+  vis('f-region', bookMode && labelsOn);
+  map.getSource('trace').setData(fc(tr.length > 1 ? [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: tr } }] : []));
+  vis('trace-line', false);
+}
+
+function fitToBook() {
+  const pts = P.filter((p) => !p.hidden && passes(p, { ignoreQuery: true })).map((p) => [p.x, p.y]);
+  if (!pts.length) return;
+  const b = new maplibregl.LngLatBounds(pts[0], pts[0]);
+  pts.forEach((c) => b.extend(c));
+  map.fitBounds(b, { padding: mobile() ? { top: 40, bottom: innerHeight * .5, left: 30, right: 30 } : 70, maxZoom: 9, duration: reduceMotion ? 0 : 900 });
+}
+
+/* ---------------- selection */
+function bboxOf(geom) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  const walk = (c) => { if (typeof c[0] === 'number') { x0 = Math.min(x0, c[0]); y0 = Math.min(y0, c[1]); x1 = Math.max(x1, c[0]); y1 = Math.max(y1, c[1]); } else c.forEach(walk); };
+  walk(geom.coordinates);
+  return [[x0, y0], [x1, y1]];
+}
+function camera(p, opts = {}) {
+  if (p.x == null) return;
+  const pad = mobile() ? { top: 40, bottom: innerHeight * .62, left: 30, right: 30 } : { top: 60, bottom: 60, left: 60, right: 60 };
+  const best = p.ids.find((i) => 'x' in i);
+  const shp = best && best.g && SHAPES && SHAPES[best.g];
+  const dur = reduceMotion ? 0 : opts.duration ?? 1200;
+  if (shp && shp.type !== 'Point') {
+    map.fitBounds(bboxOf(shp), { padding: pad, maxZoom: 10.5, duration: dur });
+    return;
+  }
+  const near = p.ids.filter((i) => 'x' in i && Math.abs(i.x - p.x) < .6 && Math.abs(i.y - p.y) < .6);
+  if (near.length > 1 && p.cat !== 'region') {
+    const b = new maplibregl.LngLatBounds([p.x, p.y], [p.x, p.y]);
+    near.forEach((i) => b.extend([i.x, i.y]));
+    map.fitBounds(b, { padding: mobile() ? pad : { top: 120, bottom: 120, left: 120, right: 120 }, maxZoom: 11, duration: dur });
+    return;
+  }
+  const z = p.cat === 'region' ? 6.5 : Math.max(map.getZoom(), 9);
+  map.flyTo({ center: [p.x, p.y], zoom: Math.min(z, 11), padding: pad, duration: dur, essential: true });
+}
+function hideLabelOf(id) {
+  for (const l of [...LAYER_IDS.labels, ...LAYER_IDS.regions, 'f-label', 'f-region']) {
+    const f = map.getFilter(l);
+    const baseF = f && f[0] === 'all' && f.at(-1)[0] === '!=' && f.at(-1)[1][1] === 'id' ? f.slice(0, -1) : f;
+    map.setFilter(l, id ? [...(baseF[0] === 'all' ? baseF : ['all', baseF]), ['!=', ['get', 'id'], id]] : baseF);
+  }
+}
+function drawSelection(p) {
+  if (!mapReady) return;
+  if (!p || p.x == null) {
+    ['sel', 'alts', 'shape'].forEach((s) => map.getSource(s).setData(fc([])));
+    hideLabelOf(null);
+    return;
+  }
+  map.getSource('sel').setData(fc([feature(p)]));
+  hideLabelOf(p.id);
+  const alts = [];
+  const located = p.ids.filter((i) => 'x' in i);
+  located.slice(1).forEach((e, i) => {
+    if (Math.abs(e.x - p.x) < 1e-4 && Math.abs(e.y - p.y) < 1e-4) return;
+    alts.push({ type: 'Feature', properties: { k: i + 2 }, geometry: { type: 'Point', coordinates: [e.x, e.y] } });
+    alts.push({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [[p.x, p.y], [e.x, e.y]] } });
+  });
+  map.getSource('alts').setData(fc(alts));
+  const best = located[0];
+  const put = () => {
+    const g = best && best.g && SHAPES && SHAPES[best.g];
+    map.getSource('shape').setData(fc(g && g.type !== 'Point' ? [{ type: 'Feature', properties: { approx: best.lt === 'center' ? 1 : 0 }, geometry: g }] : []));
+  };
+  if (SHAPES) put(); else { map.getSource('shape').setData(fc([])); loadShapes().then(() => { if (state.sel === p) { put(); camera(p, { duration: 700 }); } }); }
+}
+
+function select(p, { fly = true, fromHash = false } = {}) {
+  state.sel = p;
+  hoverPopup && hoverPopup.remove();
+  choosePopup && choosePopup.remove();
+  renderDetail(p);
+  $('#detail').classList.add('open');
+  $('#detailBody').scrollTop = 0;
+  if (mobile()) setSheet('mid');
+  document.querySelectorAll('.row.active').forEach((r) => r.classList.remove('active'));
+  const row = document.querySelector(`.row[data-id="${p.id}"]`);
+  row && row.classList.add('active');
+  drawSelection(p);
+  if (fly && map) camera(p);
+  if (!fromHash && location.hash.slice(1) !== p.slug) history.replaceState(null, '', '#' + p.slug);
+}
+function deselect() {
+  state.sel = null;
+  $('#detail').classList.remove('open');
+  drawSelection(null);
+  document.querySelectorAll('.row.active').forEach((r) => r.classList.remove('active'));
+  if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+}
+
+/* ---------------- detail */
+function sparkline(tv) {
+  const w = 300, h = 56, pad = 4;
+  const xs = tv.map((_, i) => pad + i * (w - 2 * pad) / (tv.length - 1));
+  const ys = tv.map((v) => h - 6 - (v / 1000) * (h - 12));
+  const line = xs.map((x, i) => `${i ? 'L' : 'M'}${x.toFixed(1)},${ys[i].toFixed(1)}`).join('');
+  const area = `${line}L${xs.at(-1)},${h - 6}L${xs[0]},${h - 6}Z`;
+  const grid = [0, 500, 1000].map((v) => { const y = h - 6 - (v / 1000) * (h - 12); return `<line x1="${pad}" x2="${w - pad}" y1="${y}" y2="${y}" stroke="#2a4252" stroke-width="1" ${v === 500 ? 'stroke-dasharray="3 3"' : ''}/>`; }).join('');
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="Confidence by decade: ${tv.map((v, i) => DECADES[i] + ' ' + Math.round(v / 10) + '%').join(', ')}">
+    ${grid}<path d="${area}" fill="rgba(220,179,95,.14)"/><path d="${line}" fill="none" stroke="#dcb35f" stroke-width="1.8" vector-effect="non-scaling-stroke"/>
+    ${xs.map((x, i) => `<circle cx="${x}" cy="${ys[i]}" r="${i === tv.length - 1 ? 3.6 : 2}" fill="${i === tv.length - 1 ? '#dcb35f' : '#0f1c26'}" stroke="#dcb35f" stroke-width="1.2" vector-effect="non-scaling-stroke"/>`).join('')}
+  </svg><div class="cap"><span>${DECADES[0]}</span><span>${DECADES.at(-1)}</span></div>`;
+}
+function trendText(tv) {
+  const d = tv.at(-1) - tv[0];
+  if (d > 150) return 'Support for this site has grown since the 1960s.';
+  if (d < -150) return 'Support for this site has weakened since the 1960s.';
+  return 'Support for this site has held roughly steady.';
+}
+function linkBtn(p) { return `<button data-id="${p.id}">${esc(p.n)}</button>`; }
+
+let verseBook = 0, verseLimit = 12;
+function renderDetail(p) {
+  verseBook = state.book && p.books.has(state.book) ? state.book : 0;
+  verseLimit = 12;
+  const cat = CATS[p.cat];
+  const located = p.ids.filter((i) => 'x' in i);
+  const best = located[0];
+  const firstRef = p.v.length ? refStr(p.v[0]) : '—';
+  const type = (p.ty || []).filter((t) => t !== 'special').join(', ');
+  const parent = p.par && byId.get(p.par);
+  let banner = '';
+  if (parent && p.rel === 'alias') banner = `<p class="banner">Another name for <a data-id="${parent.id}">${esc(parent.n)}</a>.</p>`;
+  else if (parent && p.rel === 'in') banner = `<p class="banner">Somewhere within <a data-id="${parent.id}">${esc(parent.n)}</a>; the exact spot is not known.</p>`;
+  else if (parent && p.rel === 'near') banner = `<p class="banner">Located relative to <a data-id="${parent.id}">${esc(parent.n)}</a>: ${esc(p.ids[0].d)}.</p>`;
+
+  let siteHtml = '';
+  if (best) {
+    const pct = best.s == null ? null : Math.round(best.s / 10);
+    const undisputed = !best.tv && best.s === 1000;
+    siteHtml = `<section class="blk"><h3>Where it was</h3><div class="site">
+      <div class="lbl">${located.length > 1 ? 'Most likely identified with' : 'Identified with'}</div>
+      <div class="sn">${esc(cap(best.d))}</div>
+      <div class="conf"><div class="bar"><i style="width:${pct ?? 0}%"></i></div><div class="v">${pct == null ? '—' : pct + '%'}</div>
+      <div class="note">${undisputed ? 'Undisputed among the sources surveyed.' : `${confWord(best.s)}. Share of current scholarship that supports this site.`}</div></div>
+      ${best.tv ? `<div class="spark">${sparkline(best.tv)}<div class="conf"><div class="note">${trendText(best.tv)}</div></div></div>` : ''}
+      <div class="coords"><span>${Math.abs(p.y).toFixed(4)}° ${p.y >= 0 ? 'N' : 'S'}, ${Math.abs(p.x).toFixed(4)}° ${p.x >= 0 ? 'E' : 'W'}</span><button id="copyCoords">Copy</button></div>
+    </div></section>`;
+    if (located.length > 1) {
+      siteHtml += `<section class="blk"><h3>Other proposed sites <span>${located.length - 1}</span></h3><ol class="alts">${located.slice(1).map((e, i) => `<li><button data-alt="${i + 1}"><span class="k">${i + 2}</span><span class="an">${esc(cap(e.d))}</span><span class="bar"><i style="width:${Math.round((e.s || 0) / 10)}%"></i></span><span class="pc">${e.s == null ? '—' : Math.round(e.s / 10) + '%'}</span></button></li>`).join('')}</ol></section>`;
+    }
+  } else {
+    siteHtml = `<section class="blk"><h3>Where it was</h3><div class="site"><div class="sn">${esc(cap(p.note || 'Location unknown'))}</div><div class="conf"><div class="note">This name has no point on the map.</div></div></div></section>`;
+  }
+
+  const groups = { alias: [], in: [], near: [] };
+  p.kids.forEach((k) => groups[k.rel] && groups[k.rel].push(k));
+  let kidsHtml = '';
+  groups.alias = groups.alias.filter((k) => k.n !== p.n);
+  if (groups.alias.length) kidsHtml += `<section class="blk"><h3>Also called</h3><div class="kids">${groups.alias.sort((a, b) => b.m - a.m).map(linkBtn).join('')}</div></section>`;
+  if (groups.in.length) kidsHtml += `<section class="blk"><h3>Places within ${esc(p.n)} <span>${groups.in.length}</span></h3><div class="kids">${groups.in.sort((a, b) => a.n.localeCompare(b.n)).map(linkBtn).join('')}</div></section>`;
+  if (groups.near.length) kidsHtml += `<section class="blk"><h3>Located nearby</h3><div class="kids">${groups.near.sort((a, b) => b.m - a.m).map(linkBtn).join('')}</div></section>`;
+
+  const lk = p.lk || {};
+  const links = [
+    `<a href="https://www.openbible.info/geo/ancient/${p.id}/${p.slug}">OpenBible.info</a>`,
+    lk.wp && `<a href="${esc(lk.wp)}">Wikipedia</a>`,
+    lk.wd && `<a href="https://www.wikidata.org/wiki/${esc(lk.wd)}">Wikidata</a>`,
+    lk.pl && `<a href="${esc(lk.pl)}">Pleiades</a>`,
+    lk.fb && `<a href="${esc(lk.fb)}">Logos Factbook</a>`,
+    p.x != null && `<a href="https://www.google.com/maps/search/?api=1&query=${p.y},${p.x}">Google Maps</a>`,
+  ].filter(Boolean).join('');
+  const photo = p.ph ? `<a class="photo" href="${esc(p.ph.u)}">${esc(cap(p.ph.d) || 'Photo of the site')}<small>Photo by ${esc(p.ph.c)} · ${esc(p.ph.l)} · Wikimedia Commons ↗</small></a>` : '';
+
+  const bookChips = [...p.books.entries()].sort((a, b) => a[0] - b[0]);
+  $('#detailBody').innerHTML = `
+    <div class="eyebrow" style="--c:${cat.color}"><span class="sw"></span>${esc(cat.one)}${type && type !== cat.one.toLowerCase() ? ' · ' + esc(type) : ''}</div>
+    <h2 class="place-name">${esc(p.n)}</h2>
+    ${p.alt && p.alt.length ? `<p class="aka">Other translations: <i>${p.alt.map(esc).join('</i>, <i>')}</i></p>` : ''}
+    ${banner}
+    <div class="facts"><div><b>${fmt(p.m)}</b><span>${p.m === 1 ? 'mention' : 'mentions'}</span></div><div><b>${p.books.size}</b><span>${p.books.size === 1 ? 'book' : 'books'}</span></div><div class="first"><b>${esc(firstRef)}</b><span>first mention</span></div></div>
+    ${siteHtml}
+    ${kidsHtml}
+    <section class="blk"><h3>In scripture <span>Berean Standard Bible</span></h3>
+      ${bookChips.length > 1 ? `<div class="books" id="bookChips"><button data-b="0" aria-pressed="${verseBook === 0}"><b>All</b>${p.m}</button>${bookChips.map(([b, n]) => `<button data-b="${b}" aria-pressed="${verseBook === b}"><b>${esc(BOOKS[b - 1])}</b>${n}</button>`).join('')}</div>` : ''}
+      <div class="verses" id="verses"><p class="verse loading">Loading passages…</p></div>
+    </section>
+    ${photo ? `<section class="blk"><h3>See the site</h3>${photo}</section>` : ''}
+    <section class="blk"><h3>Further reading</h3><div class="links">${links}</div></section>`;
+  renderVerses(p);
+}
+
+function highlighter(p) {
+  const names = [p.n, ...(p.alt || [])].filter((n) => n.length > 1).sort((a, b) => b.length - a.length).map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/['’]/g, "['’]"));
+  return new RegExp(`(?<![\\p{L}])(${names.join('|')})(?![\\p{L}])`, 'gu');
+}
+function renderVerses(p) {
+  const el = $('#verses');
+  if (!el) return;
+  if (!VERSES) { loadVerses().then(() => state.sel === p && renderVerses(p)).catch(() => { el.innerHTML = '<p class="verse loading">The passages could not be loaded. Reload the page to try again.</p>'; }); return; }
+  const keys = p.v.filter((k) => !verseBook || Math.floor(k / 1e6) === verseBook);
+  const shown = keys.slice(0, verseLimit);
+  const re = highlighter(p);
+  let lastBook = 0, html = '';
+  for (const k of shown) {
+    const b = Math.floor(k / 1e6);
+    if (b !== lastBook) { html += `<h4 class="vbook">${esc(BOOKS[b - 1])}</h4>`; lastBook = b; }
+    const t = esc(VERSES[k] || '').replace(re, '<mark>$1</mark>');
+    html += `<p class="verse"><span class="ref">${refStr(k, false)}</span>${t}</p>`;
+  }
+  if (keys.length > shown.length) html += `<button class="more" id="moreVerses">Show all ${fmt(keys.length)} passages</button>`;
+  el.innerHTML = html;
+}
+
+/* ---------------- interactions */
+function setSheet(size) {
+  const panel = $('#panel');
+  panel.classList.toggle('tall', size === 'tall');
+  panel.classList.toggle('short', size === 'short');
+}
+function bindUI() {
+  const q = $('#q');
+  let t;
+  q.addEventListener('input', () => {
+    clearTimeout(t);
+    t = setTimeout(() => {
+      state.q = fold(q.value.trim());
+      state.limit = 250;
+      $('#searchWrap').classList.toggle('has-q', !!q.value);
+      renderList();
+      $('#scroller').scrollTop = 0;
+    }, 80);
+  });
+  q.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && lastList[0]) { select(lastList[0]); q.blur(); }
+    if (e.key === 'Escape') { q.value = ''; q.dispatchEvent(new Event('input')); }
+  });
+  q.addEventListener('focus', () => mobile() && setSheet('tall'));
+  $('#clearQ').addEventListener('click', () => { q.value = ''; q.dispatchEvent(new Event('input')); q.focus(); });
+  $('#chips').addEventListener('click', (e) => {
+    const b = e.target.closest('.chip');
+    if (!b) return;
+    const c = b.dataset.cat;
+    if (state.cats.size === CAT_ORDER.length && !e.altKey) { state.cats = new Set([c]); }
+    else if (state.cats.has(c)) { state.cats.delete(c); if (!state.cats.size) state.cats = new Set(CAT_ORDER); }
+    else state.cats.add(c);
+    document.querySelectorAll('.chip').forEach((x) => x.setAttribute('aria-pressed', state.cats.has(x.dataset.cat)));
+    renderList(); refreshMap();
+  });
+  $('#book').addEventListener('change', (e) => {
+    state.book = +e.target.value;
+    $('#traceRow').classList.toggle('on', !!state.book);
+    renderList(); refreshMap();
+    if (state.book) fitToBook();
+  });
+  $('#trace').addEventListener('change', (e) => { state.trace = e.target.checked; renderList(); refreshMap(); });
+  const seg = (sure) => { state.sure = sure; $('#confAll').setAttribute('aria-pressed', !sure); $('#confSure').setAttribute('aria-pressed', sure); renderList(); refreshMap(); };
+  $('#confAll').addEventListener('click', () => seg(false));
+  $('#confSure').addEventListener('click', () => seg(true));
+  $('#sortBtn').addEventListener('click', () => { state.sort = state.sort === 'az' ? 'mentions' : 'az'; renderList(); });
+  $('#list').addEventListener('click', (e) => {
+    if (e.target.id === 'moreBtn') { state.limit += 500; renderList(); return; }
+    const r = e.target.closest('.row');
+    if (r) select(byId.get(r.dataset.id));
+  });
+  $('#list').addEventListener('mouseover', (e) => {
+    const r = e.target.closest('.row');
+    if (!r || !map) return;
+    const p = byId.get(r.dataset.id);
+    if (p && p.x != null && !mobile() && map.loaded()) showTip(p);
+  });
+  $('#list').addEventListener('mouseleave', () => hoverPopup && hoverPopup.remove());
+  $('#back').addEventListener('click', deselect);
+  $('#zoomTo').addEventListener('click', () => { if (state.sel) { camera(state.sel); if (mobile()) setSheet('short'); } });
+  $('#detailBody').addEventListener('click', (e) => {
+    const a = e.target.closest('[data-id]');
+    if (a) { e.preventDefault(); select(byId.get(a.dataset.id)); return; }
+    const alt = e.target.closest('[data-alt]');
+    if (alt && state.sel) {
+      const e2 = state.sel.ids.filter((i) => 'x' in i)[+alt.dataset.alt];
+      map.flyTo({ center: [e2.x, e2.y], zoom: Math.max(map.getZoom(), 9), duration: reduceMotion ? 0 : 900, padding: mobile() ? { bottom: innerHeight * .62 } : 0 });
+      if (mobile()) setSheet('short');
+      return;
+    }
+    const bk = e.target.closest('[data-b]');
+    if (bk) {
+      verseBook = +bk.dataset.b; verseLimit = 12;
+      document.querySelectorAll('#bookChips button').forEach((x) => x.setAttribute('aria-pressed', +x.dataset.b === verseBook));
+      renderVerses(state.sel);
+      return;
+    }
+    if (e.target.id === 'moreVerses') { verseLimit = Infinity; renderVerses(state.sel); return; }
+    if (e.target.id === 'copyCoords' && state.sel) {
+      const s = `${state.sel.y}, ${state.sel.x}`;
+      navigator.clipboard?.writeText(s).then(() => { e.target.textContent = 'Copied'; }).catch(() => { e.target.textContent = s; });
+    }
+  });
+  $('#aboutBtn').addEventListener('click', () => $('#about').showModal());
+  $('#aboutClose').addEventListener('click', () => $('#about').close());
+  $('#about').addEventListener('click', (e) => { if (e.target.id === 'about') $('#about').close(); });
+  $('#layersBtn').addEventListener('click', () => { const o = $('#layers').classList.toggle('open'); $('#layersBtn').setAttribute('aria-expanded', o); });
+  $('#legendToggle').addEventListener('click', () => { const min = $('#legend').classList.toggle('min'); $('#legendToggle').textContent = min ? '+' : '−'; $('#legendToggle').setAttribute('aria-expanded', !min); });
+  const toggle = (id, layers) => $(id).addEventListener('change', (e) => layers.forEach((l) => map.getLayer(l) && map.setLayoutProperty(l, 'visibility', e.target.checked ? 'visible' : 'none')));
+  toggle('#lyRelief', ['relief']);
+  toggle('#lyRivers', ['rivers', 'lakes']);
+  toggle('#lyModern', ['borders', 'landforms']);
+  $('#lyLabels').addEventListener('change', refreshMap);
+  $('#reset').addEventListener('click', () => homeView());
+  $('#handle').addEventListener('click', () => {
+    const panel = $('#panel');
+    setSheet(panel.classList.contains('tall') ? 'short' : panel.classList.contains('short') ? 'mid' : 'tall');
+  });
+  addEventListener('keydown', (e) => {
+    if (e.key === '/' && document.activeElement !== q && !$('#about').open) { e.preventDefault(); q.focus(); q.select(); }
+    if (e.key === 'Escape' && document.activeElement !== q && state.sel && !$('#about').open) deselect();
+  });
+  addEventListener('hashchange', () => {
+    const p = bySlug.get(decodeURIComponent(location.hash.slice(1)));
+    if (p && p !== state.sel) select(p, { fromHash: true });
+  });
+}
+
+function homeView() {
+  const pad = mobile() ? { top: 20, bottom: innerHeight * .45, left: 10, right: 10 } : 40;
+  map.fitBounds([[23.5, 24.5], [48.5, 38.5]], { padding: pad, duration: reduceMotion ? 0 : 900 });
+}
+
+function showTip(p, lngLat) {
+  if (!hoverPopup) hoverPopup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, offset: 12, maxWidth: '260px' });
+  hoverPopup.setLngLat(lngLat || [p.x, p.y]).setHTML(`<div class="tip"><b>${esc(p.n)}</b><span>${esc(subline(p))}</span><br><span>${fmt(p.m)} ${p.m === 1 ? 'mention' : 'mentions'} · ${confWord(p.c)}</span></div>`).addTo(map);
+}
+
+function bindMap() {
+  const clickable = () => [...LAYER_IDS.dots, ...LAYER_IDS.labels, ...LAYER_IDS.regions, 'f-dot', 'f-ord', 'f-label', 'f-region', 'sel-halo'].filter((id) => map.getLayer(id) && map.getLayoutProperty(id, 'visibility') !== 'none');
+  const hit = (pt) => {
+    const r = 7;
+    const fs = map.queryRenderedFeatures([[pt.x - r, pt.y - r], [pt.x + r, pt.y + r]], { layers: clickable() });
+    const seen = new Set(), out = [];
+    for (const f of fs) { const id = f.properties.id; if (id && !seen.has(id)) { seen.add(id); out.push(byId.get(id)); } }
+    return out.filter(Boolean).sort((a, b) => b.m - a.m);
+  };
+  map.on('mousemove', (e) => {
+    const ps = hit(e.point);
+    map.getCanvas().style.cursor = ps.length ? 'pointer' : '';
+    if (ps.length && !(choosePopup && choosePopup.isOpen())) showTip(ps[0], [ps[0].x, ps[0].y]);
+    else hoverPopup && hoverPopup.remove();
+  });
+  map.on('mouseout', () => hoverPopup && hoverPopup.remove());
+  map.on('click', (e) => {
+    const ps = hit(e.point);
+    if (!ps.length) return;
+    if (ps.length === 1 || state.sel === ps[0] && ps.length === 1) { select(ps[0], { fly: false }); map.easeTo({ center: [ps[0].x, ps[0].y], duration: reduceMotion ? 0 : 500, padding: mobile() ? { bottom: innerHeight * .5 } : 0 }); return; }
+    hoverPopup && hoverPopup.remove();
+    choosePopup && choosePopup.remove();
+    const div = document.createElement('div');
+    div.className = 'chooser';
+    div.innerHTML = `<h5>${ps.length} places here</h5>` + ps.map((p) => `<button data-id="${p.id}"><span class="sw" style="--c:${CATS[p.cat].color}"></span>${esc(p.n)}</button>`).join('');
+    div.addEventListener('click', (ev) => { const b = ev.target.closest('[data-id]'); if (b) { select(byId.get(b.dataset.id), { fly: false }); choosePopup.remove(); } });
+    choosePopup = new maplibregl.Popup({ closeButton: false, offset: 10, maxWidth: '280px' }).setLngLat(e.lngLat).setDOMContent(div).addTo(map);
+  });
+}
+
+/* ---------------- boot */
+async function boot() {
+  bindUI();
+  let data, geo;
+  try {
+    const [d, ocean, lakes, rivers, borders, geolabels, meta] = await Promise.all(['places.json', 'ocean.json', 'lakes.json', 'rivers.json', 'borders.json', 'geolabels.json', 'basemap_meta.json'].map(getJSON));
+    data = d; geo = { ocean, lakes, rivers, borders, geolabels, meta };
+  } catch (err) {
+    $('#veil').textContent = 'The map data could not be loaded. Reload the page to try again.';
+    $('#stats').textContent = '';
+    console.error(err);
+    return;
+  }
+  prepare(data);
+  const refs = P.reduce((s, p) => s + p.m, 0);
+  $('#stats').innerHTML = `<b>${fmt(P.length)}</b> places · <b>${fmt(refs)}</b> mentions across <b>66</b> books`;
+  renderChips();
+  renderBooks();
+  renderList();
+
+  // label glyphs ship base64-encoded in one JSON file; serve them through a custom protocol
+  const glyphFile = getJSON('glyphs.json');
+  maplibregl.addProtocol('glyphs', async (params) => {
+    const key = decodeURIComponent(params.url.replace('glyphs://', ''));
+    const all = await glyphFile;
+    const b64 = all[key];
+    if (!b64) return { data: new ArrayBuffer(0) };
+    const bin = atob(b64), buf = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+    return { data: buf.buffer };
+  });
+  const built = buildStyle(geo);
+  LAYER_IDS = built.ids;
+  const [LON0, LAT0, LON1, LAT1] = geo.meta.bounds;
+  map = new maplibregl.Map({
+    container: 'map',
+    style: built.style,
+    bounds: [[23.5, 24.5], [48.5, 38.5]],
+    fitBoundsOptions: { padding: 30 },
+    maxBounds: [[LON0, LAT0], [LON1, LAT1]],
+    minZoom: 2.5,
+    maxZoom: 13.5,
+    dragRotate: false,
+    pitchWithRotate: false,
+    attributionControl: false,
+    renderWorldCopies: false,
+  });
+  map.touchZoomRotate.disableRotation();
+  map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+  map.addControl(new maplibregl.ScaleControl({ maxWidth: 110, unit: 'metric' }), 'bottom-left');
+  map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: 'Places: <a href="https://www.openbible.info/geo/">OpenBible.info</a> CC BY 4.0 · © OpenStreetMap contributors · Natural Earth · Scripture: Berean Standard Bible' }), mobile() ? 'top-left' : 'bottom-right');
+  map.on('load', () => {
+    mapReady = true;
+    document.querySelectorAll('.maplibregl-compact-show').forEach((el) => el.classList.remove('maplibregl-compact-show'));
+    refreshMap();
+    bindMap();
+    setTimeout(() => $('#veil').classList.add('gone'), 150);
+    const p = bySlug.get(decodeURIComponent(location.hash.slice(1)));
+    if (p) { loadShapes().finally(() => select(p, { fromHash: true })); }
+    // warm the lazy files once the map is idle
+    map.once('idle', () => { loadShapes(); loadVerses(); });
+  });
+  map.on('error', (e) => console.warn('map', e && e.error && e.error.message));
+}
+boot();
+})();
+</script>
+</body>
+</html>
